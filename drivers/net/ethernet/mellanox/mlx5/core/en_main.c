@@ -5490,6 +5490,34 @@ static const struct netdev_stat_ops mlx5e_stat_ops = {
 	.get_base_stats      = mlx5e_get_base_stats,
 };
 
+static int mlx5e_queue_mem_alloc(struct net_device *dev, void *queue, int queue_index)
+{
+	struct mlx5e_priv *priv = netdev_priv(dev);
+
+	netdev_dbg(priv->netdev, "%s queue_index = %d\n", __func__, queue_index);
+	return mlx5e_safe_reopen_channels(priv);
+}
+
+static void mlx5e_queue_mem_free(struct net_device *dev, void *queue) { }
+
+static int mlx5e_queue_stop(struct net_device *dev, void *queue, int queue_index)
+{
+	return 0;
+}
+
+static int mlx5e_queue_start(struct net_device *dev, void *queue, int queue_index)
+{
+	return 0;
+}
+
+static const struct netdev_queue_mgmt_ops mlx5e_queue_mgmt_ops = {
+	.ndo_queue_mem_size	=	sizeof(u8), /* dummy */
+	.ndo_queue_mem_alloc	=	mlx5e_queue_mem_alloc,
+	.ndo_queue_mem_free	=	mlx5e_queue_mem_free,
+	.ndo_queue_start	=	mlx5e_queue_start,
+	.ndo_queue_stop		=	mlx5e_queue_stop,
+};
+
 static void mlx5e_build_nic_netdev(struct net_device *netdev)
 {
 	struct mlx5e_priv *priv = netdev_priv(netdev);
@@ -5500,6 +5528,7 @@ static void mlx5e_build_nic_netdev(struct net_device *netdev)
 	SET_NETDEV_DEV(netdev, mdev->device);
 
 	netdev->netdev_ops = &mlx5e_netdev_ops;
+	netdev->queue_mgmt_ops = &mlx5e_queue_mgmt_ops;
 	netdev->xdp_metadata_ops = &mlx5e_xdp_metadata_ops;
 	netdev->xsk_tx_metadata_ops = &mlx5e_xsk_tx_metadata_ops;
 
