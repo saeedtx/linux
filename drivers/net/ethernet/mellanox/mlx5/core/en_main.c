@@ -43,6 +43,7 @@
 #include <net/page_pool/types.h>
 #include <net/pkt_sched.h>
 #include <net/xdp_sock_drv.h>
+#include <net/netdev_rx_queue.h>
 #include "eswitch.h"
 #include "en.h"
 #include "en/dim.h"
@@ -935,6 +936,7 @@ static int mlx5e_alloc_rq(struct mlx5e_params *params,
 	} else {
 		/* Create a page_pool and register it with rxq */
 		struct page_pool_params pp_params = { 0 };
+		struct netdev_rx_queue *rxq;
 
 		pp_params.order     = 0;
 		pp_params.flags     = PP_FLAG_DMA_MAP | PP_FLAG_DMA_SYNC_DEV;
@@ -945,6 +947,14 @@ static int mlx5e_alloc_rq(struct mlx5e_params *params,
 		pp_params.netdev    = rq->netdev;
 		pp_params.dma_dir   = rq->buff.map_dir;
 		pp_params.max_len   = PAGE_SIZE;
+
+		rxq = __netif_get_rx_queue(rq->netdev, rq->ix);
+		if (rxq->mp_params.mp_priv) {
+			printk("mp_priv page pool for rq %d\n", rq->ix);
+			pp_params.flags = PP_FLAG_DMA_MAP | PP_FLAG_ALLOW_UNREADABLE_NETMEM;
+			pp_params.queue_idx = rq->ix;
+			pp_params.slow.queue_idx = rq->ix;
+		}
 
 		/* page_pool can be used even when there is no rq->xdp_prog,
 		 * given page_pool does not handle DMA mapping there is no
