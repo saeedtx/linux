@@ -361,6 +361,35 @@ static void mlx5e_get_ringparam(struct net_device *dev,
 	mlx5e_ethtool_get_ringparam(priv, param, kernel_param);
 }
 
+static bool mlx5e_ethtool_set_tcp_data_split(struct mlx5e_priv *priv,
+					     u8 tcp_data_split)
+{
+	bool enabled = (tcp_data_split == ETHTOOL_TCP_DATA_SPLIT_ENABLED);
+	struct net_device *dev = priv->netdev;
+
+	if (tcp_data_split == ETHTOOL_TCP_DATA_SPLIT_UNKNOWN)
+		return 1;
+
+	if (enabled && dev->features & NETIF_F_GRO_HW) {
+		dev->wanted_features |= NETIF_F_GRO_HW;
+		return 1;
+	}
+
+	if (!enabled && !(dev->features & NETIF_F_GRO_HW)) {
+		dev->wanted_features &= ~NETIF_F_GRO_HW;
+		return 1;
+	}
+
+	if (enabled)
+		dev->wanted_features |= NETIF_F_GRO_HW;
+	else
+		dev->wanted_features &= ~NETIF_F_GRO_HW;
+
+	netdev_change_features(dev);
+
+	return enabled == !!(dev->features & NETIF_F_GRO_HW);
+}
+
 int mlx5e_ethtool_set_ringparam(struct mlx5e_priv *priv,
 				struct ethtool_ringparam *param,
 				struct netlink_ext_ack *extack)
@@ -418,6 +447,9 @@ static int mlx5e_set_ringparam(struct net_device *dev,
 			       struct netlink_ext_ack *extack)
 {
 	struct mlx5e_priv *priv = netdev_priv(dev);
+
+	if (!mlx5e_ethtool_set_tcp_data_split(priv, kernel_param->tcp_data_split))
+		return -EINVAL;
 
 	return mlx5e_ethtool_set_ringparam(priv, param, extack);
 }
@@ -2613,6 +2645,7 @@ const struct ethtool_ops mlx5e_ethtool_ops = {
 				     ETHTOOL_COALESCE_MAX_FRAMES |
 				     ETHTOOL_COALESCE_USE_ADAPTIVE |
 				     ETHTOOL_COALESCE_USE_CQE,
+	.supported_ring_params = ETHTOOL_RING_USE_TCP_DATA_SPLIT,
 	.get_drvinfo       = mlx5e_get_drvinfo,
 	.get_link          = ethtool_op_get_link,
 	.get_link_ext_state  = mlx5e_get_link_ext_state,
